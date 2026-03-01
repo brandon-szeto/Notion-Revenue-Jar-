@@ -285,247 +285,47 @@
 <script>
   let GOAL = parseFloat(localStorage.getItem('qt_jar_goal')) || 1000;
 
-  // ── BG CANVAS ──
-  const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
-  let BW,BH,bt=0;
-  function resizeBg(){BW=bgC.width=window.innerWidth;BH=bgC.height=window.innerHeight;}
-  resizeBg();window.addEventListener('resize',resizeBg);
-  const orbs=[{x:.15,y:.2,r:280,c:[107,63,160],s:.00018,p:0},{x:.8,y:.75,r:220,c:[232,185,35],s:.00012,p:2},{x:.6,y:.3,r:180,c:[140,50,200],s:.00022,p:4}];
-  function drawBg(){
-    bt++;bgX.fillStyle='#0d0814';bgX.fillRect(0,0,BW,BH);
-    bgX.strokeStyle='rgba(107,63,160,0.06)';bgX.lineWidth=1;
-    for(let x=0;x<BW;x+=40){bgX.globalAlpha=Math.max(0,1-Math.abs(x-BW/2)/(BW*.6));bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,BH);bgX.stroke();}
-    for(let y=0;y<BH;y+=40){bgX.globalAlpha=Math.max(0,1-Math.abs(y-BH/2)/(BH*.6));bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(BW,y);bgX.stroke();}
-    bgX.globalAlpha=1;
-    orbs.forEach(o=>{
-      const cx=o.x*BW+Math.sin(bt*o.s+o.p)*80,cy=o.y*BH+Math.cos(bt*o.s*.7+o.p)*60;
-      const g=bgX.createRadialGradient(cx,cy,0,cx,cy,o.r);
-      g.addColorStop(0,`rgba(${o.c[0]},${o.c[1]},${o.c[2]},.3)`);g.addColorStop(1,`rgba(${o.c[0]},${o.c[1]},${o.c[2]},0)`);
-      bgX.filter='blur(40px)';bgX.fillStyle=g;bgX.beginPath();bgX.arc(cx,cy,o.r,0,Math.PI*2);bgX.fill();bgX.filter='none';
-    });
-    requestAnimationFrame(drawBg);
-  }
-  drawBg();
-
-  // ── DIVIDER CANVAS ──
-  function setupDivider(id, delay) {
-    const dc=document.getElementById(id),dctx=dc.getContext('2d');
-    let dp = -delay;
-    function resizeDiv(){dc.width=dc.parentElement.clientWidth;dc.height=16;}
-    resizeDiv();window.addEventListener('resize',resizeDiv);
-    function drawDiv(f){
-      const W=dc.width,H=dc.height,cy=H/2;
-      dctx.clearRect(0,0,W,H);
-      const sX=[W/2-55,W/2,W/2+55];
-      const prog=((f%300)+300)%300/300,cX=-0.15*W+prog*W*1.3,tL=W*.22;
-      function br(x){const d=cX-x;return(d<0||d>tL)?0:Math.pow(1-d/tL,1.5);}
-      [[0,sX[0]-12],[sX[0]+12,sX[1]-12],[sX[1]+12,sX[2]-12],[sX[2]+12,W]].forEach(([x1,x2])=>{
-        if(x2<=x1)return;
-        const bg=dctx.createLinearGradient(x1,cy,x2,cy);
-        bg.addColorStop(0,'rgba(107,63,160,0)');bg.addColorStop(.3,'rgba(107,63,160,.5)');bg.addColorStop(.7,'rgba(232,185,35,.25)');bg.addColorStop(1,'rgba(107,63,160,0)');
-        dctx.strokeStyle=bg;dctx.lineWidth=1;dctx.beginPath();dctx.moveTo(x1,cy);dctx.lineTo(x2,cy);dctx.stroke();
-        for(let i=0;i<x2-x1;i+=2){const x=x1+i,b=br(x);if(b<=0)continue;dctx.strokeStyle=`rgba(255,230,100,${b*.95})`;dctx.lineWidth=1+b*1.5;dctx.shadowColor=`rgba(232,185,35,${b*.8})`;dctx.shadowBlur=b*8;dctx.beginPath();dctx.moveTo(x,cy);dctx.lineTo(x+2,cy);dctx.stroke();dctx.shadowBlur=0;}
-      });
-      ['✦','✦','✦'].forEach((s,i)=>{
-        const sx=sX[i],b=br(sx);dctx.font=`${8+b*3}px serif`;dctx.textAlign='center';dctx.textBaseline='middle';
-        dctx.fillStyle=`rgba(232,185,35,${.3+b*.7})`;if(b>.1){dctx.shadowColor=`rgba(255,220,80,${b})`;dctx.shadowBlur=b*12;}
-        dctx.fillText(s,sx,cy);dctx.shadowBlur=0;
-      });
-      dp++;requestAnimationFrame(()=>drawDiv(dp));
-    }
-    drawDiv(dp);
-  }
-  setupDivider('div1', 0);
-  setupDivider('div2', 150);
-
-  // ── JAR CANVAS ──
-  const jar = document.getElementById('jar-canvas');
-  const jctx = jar.getContext('2d');
-  let fillTarget = 0, fillCurrent = 0, waveOffset = 0;
-  let coins = []; // floating coin particles inside jar
-
-  function drawJar(pct) {
-    const W = jar.width, H = jar.height;
-    jctx.clearRect(0, 0, W, H);
-
-    // Jar dimensions
-    const jx = 20, jy = 20, jw = W - 40, jh = H - 40;
-    const neckH = 22, neckW = jw * 0.55;
-    const bodyTop = jy + neckH;
-    const bodyH = jh - neckH;
-    const neckX = jx + (jw - neckW) / 2;
-
-    // Clipping path for jar interior (fill area)
-    jctx.save();
-    jctx.beginPath();
-    // neck
-    jctx.moveTo(neckX, bodyTop);
-    jctx.lineTo(neckX + neckW, bodyTop);
-    // body curves
-    jctx.bezierCurveTo(neckX + neckW + 18, bodyTop + bodyH * 0.1, jx + jw, bodyTop + bodyH * 0.2, jx + jw, bodyTop + bodyH * 0.5);
-    jctx.bezierCurveTo(jx + jw, bodyTop + bodyH * 0.8, jx + jw - 8, bodyTop + bodyH - 10, jx + jw / 2, bodyTop + bodyH);
-    jctx.bezierCurveTo(jx + 8, bodyTop + bodyH - 10, jx, bodyTop + bodyH * 0.8, jx, bodyTop + bodyH * 0.5);
-    jctx.bezierCurveTo(jx, bodyTop + bodyH * 0.2, neckX - 18, bodyTop + bodyH * 0.1, neckX, bodyTop);
-    jctx.closePath();
-    jctx.clip();
-
-    // Fill liquid
-    const fillH = bodyH * Math.min(pct, 1);
-    const fillY = bodyTop + bodyH - fillH;
-
-    if (pct > 0) {
-      // Gradient fill
-      const fillGrad = jctx.createLinearGradient(0, fillY, 0, bodyTop + bodyH);
-      if (pct >= 1) {
-        fillGrad.addColorStop(0, 'rgba(232,185,35,0.9)');
-        fillGrad.addColorStop(1, 'rgba(180,120,10,0.95)');
-      } else {
-        fillGrad.addColorStop(0, 'rgba(107,63,160,0.7)');
-        fillGrad.addColorStop(0.4, 'rgba(150,80,200,0.8)');
-        fillGrad.addColorStop(1, 'rgba(232,185,35,0.6)');
-      }
-      jctx.fillStyle = fillGrad;
-      jctx.fillRect(jx - 5, fillY + 6, jw + 10, bodyH);
-
-      // Animated wave on top
-      jctx.beginPath();
-      jctx.moveTo(jx - 5, fillY + 6);
-      const ww = jw + 10;
-      for (let wx = 0; wx <= ww; wx += 2) {
-        const wy = Math.sin((wx / ww) * Math.PI * 3 + waveOffset) * 3;
-        jctx.lineTo(jx - 5 + wx, fillY + 6 + wy);
-      }
-      jctx.lineTo(jx + jw + 5, bodyTop + bodyH);
-      jctx.lineTo(jx - 5, bodyTop + bodyH);
-      jctx.closePath();
-      jctx.fillStyle = fillGrad;
-      jctx.fill();
-
-      // Wave highlight
-      jctx.beginPath();
-      jctx.moveTo(jx - 5, fillY + 6);
-      for (let wx = 0; wx <= ww; wx += 2) {
-        const wy = Math.sin((wx / ww) * Math.PI * 3 + waveOffset) * 3;
-        jctx.lineTo(jx - 5 + wx, fillY + 6 + wy);
-      }
-      jctx.strokeStyle = pct >= 1 ? 'rgba(255,240,150,0.6)' : 'rgba(200,150,255,0.4)';
-      jctx.lineWidth = 1.5;
-      jctx.stroke();
-
-      // Coins floating inside
-      coins.forEach(c => {
-        if (c.y > fillY + 4) {
-          jctx.font = `${c.size}px serif`;
-          jctx.textAlign = 'center';
-          jctx.textBaseline = 'middle';
-          jctx.globalAlpha = c.alpha;
-          jctx.fillText('💰', c.x, c.y);
-          jctx.globalAlpha = 1;
-        }
-      });
-    }
-
-    jctx.restore();
-
-    // Draw jar outline ON TOP
-    jctx.save();
-
-    // Body outline
-    jctx.beginPath();
-    jctx.moveTo(neckX, bodyTop);
-    jctx.lineTo(neckX + neckW, bodyTop);
-    jctx.bezierCurveTo(neckX + neckW + 18, bodyTop + bodyH * 0.1, jx + jw, bodyTop + bodyH * 0.2, jx + jw, bodyTop + bodyH * 0.5);
-    jctx.bezierCurveTo(jx + jw, bodyTop + bodyH * 0.8, jx + jw - 8, bodyTop + bodyH - 10, jx + jw / 2, bodyTop + bodyH);
-    jctx.bezierCurveTo(jx + 8, bodyTop + bodyH - 10, jx, bodyTop + bodyH * 0.8, jx, bodyTop + bodyH * 0.5);
-    jctx.bezierCurveTo(jx, bodyTop + bodyH * 0.2, neckX - 18, bodyTop + bodyH * 0.1, neckX, bodyTop);
-    jctx.strokeStyle = pct >= 1 ? 'rgba(232,185,35,0.8)' : 'rgba(107,63,160,0.7)';
-    jctx.lineWidth = 1.5;
-    jctx.stroke();
-
-    // Glass shine
-    jctx.beginPath();
-    jctx.moveTo(neckX + 8, bodyTop + 10);
-    jctx.bezierCurveTo(neckX + 4, bodyTop + bodyH * 0.25, jx + 8, bodyTop + bodyH * 0.35, jx + 10, bodyTop + bodyH * 0.5);
-    jctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    jctx.lineWidth = 3;
-    jctx.lineCap = 'round';
-    jctx.stroke();
-
-    // Lid
-    const lidX = neckX - 4, lidW = neckW + 8, lidH = 10;
-    jctx.fillStyle = pct >= 1 ? 'rgba(232,185,35,0.5)' : 'rgba(107,63,160,0.5)';
-    jctx.beginPath();
-    jctx.roundRect(lidX, jy + 10, lidW, lidH, 3);
-    jctx.fill();
-    jctx.strokeStyle = pct >= 1 ? 'rgba(232,185,35,0.8)' : 'rgba(107,63,160,0.8)';
-    jctx.lineWidth = 1;
-    jctx.stroke();
-
-    // Lid knob
-    const knobW = 16, knobH = 8;
-    jctx.fillStyle = pct >= 1 ? 'rgba(232,185,35,0.6)' : 'rgba(107,63,160,0.6)';
-    jctx.beginPath();
-    jctx.roundRect(neckX + neckW / 2 - knobW / 2, jy + 2, knobW, knobH, 2);
-    jctx.fill();
-    jctx.strokeStyle = pct >= 1 ? 'rgba(232,185,35,0.9)' : 'rgba(180,130,255,0.6)';
-    jctx.lineWidth = 1;
-    jctx.stroke();
-
-    // Glow when full
-    if (pct >= 1) {
-      jctx.shadowColor = 'rgba(232,185,35,0.5)';
-      jctx.shadowBlur = 20;
-      jctx.beginPath();
-      jctx.arc(W / 2, H / 2 + 10, 50, 0, Math.PI * 2);
-      jctx.fillStyle = 'rgba(232,185,35,0.03)';
-      jctx.fill();
-      jctx.shadowBlur = 0;
-    }
-
-    jctx.restore();
-  }
-
-  // Animate jar fill + wave
-  let jarFrame = 0;
-  function animateJar() {
-    waveOffset += 0.04;
-    fillCurrent += (fillTarget - fillCurrent) * 0.05;
-
-    // Animate coins
-    coins.forEach(c => {
-      c.y -= c.speed;
-      c.alpha -= 0.004;
-      if (c.alpha <= 0) c.alpha = 0;
-    });
-
-    drawJar(fillCurrent / GOAL);
-    jarFrame++;
-    requestAnimationFrame(animateJar);
-  }
-  animateJar();
-
-  function spawnCoins(count) {
-    const jar = document.getElementById('jar-canvas');
-    for (let i = 0; i < count; i++) {
-      coins.push({
-        x: 30 + Math.random() * 80,
-        y: 170 + Math.random() * 20,
-        speed: 0.3 + Math.random() * 0.5,
-        alpha: 0.6 + Math.random() * 0.4,
-        size: 10 + Math.random() * 8
-      });
-    }
-    // Keep max 20 coins
-    if (coins.length > 20) coins = coins.slice(-20);
-  }
-
-  // ── MONTH LABEL ──
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('month-label').textContent = months[new Date().getMonth()] + ' ' + new Date().getFullYear();
-
-  // ── DATA ──
+  // ───────────── MONTH ROLLOVER + ARCHIVE SYSTEM ─────────────
   const storageKey = () => `qt_jar_${new Date().getFullYear()}_${new Date().getMonth()}`;
+  const archiveKey = () => "qt_jar_archive";
 
+  function handleMonthRollover() {
+    const now = new Date();
+    const currentKey = storageKey();
+    const lastKey = localStorage.getItem("qt_last_month_key");
+
+    if (!lastKey) {
+      localStorage.setItem("qt_last_month_key", currentKey);
+      return;
+    }
+
+    if (lastKey !== currentKey) {
+      const oldSales = JSON.parse(localStorage.getItem(lastKey)) || [];
+      const oldTotal = oldSales.reduce((s,x)=>s+x.amount,0);
+
+      if (oldSales.length > 0) {
+        const archive = JSON.parse(localStorage.getItem(archiveKey())) || [];
+        archive.push({
+          month: lastKey,
+          total: oldTotal,
+          closed: new Date().toISOString()
+        });
+        localStorage.setItem(archiveKey(), JSON.stringify(archive));
+      }
+
+      localStorage.setItem("qt_last_month_key", currentKey);
+    }
+  }
+
+  handleMonthRollover();
+
+  function getLastMonthTotal() {
+    const archive = JSON.parse(localStorage.getItem(archiveKey())) || [];
+    if (!archive.length) return 0;
+    return archive[archive.length - 1].total;
+  }
+
+  // ───────────── DATA ─────────────
   function loadData() {
     try { return JSON.parse(localStorage.getItem(storageKey())) || []; }
     catch { return []; }
@@ -535,256 +335,58 @@
     localStorage.setItem(storageKey(), JSON.stringify(sales));
   }
 
-  function toggleGoalEdit() {
-    const val = document.getElementById('goal-edit-val');
-    const inp = document.getElementById('goal-edit-input');
-    val.style.display = 'none';
-    inp.value = GOAL;
-    inp.classList.add('show');
-    inp.focus();
-    inp.select();
-  }
-
-  function saveGoal() {
-    const inp = document.getElementById('goal-edit-input');
-    const newGoal = parseFloat(inp.value);
-    if (newGoal && newGoal > 0) {
-      GOAL = newGoal;
-      localStorage.setItem('qt_jar_goal', GOAL);
-    }
-    inp.classList.remove('show');
-    document.getElementById('goal-edit-val').style.display = '';
-    renderAll();
-  }
-
-  function formatGoal(g) {
-    return '$' + g.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  }
-
-  // Reel state — must be declared before renderAll() is called
-  let reelOffset = 0;
-  let reelVelocity = 0;
-  let reelDragging = false;
-  let reelDragStartY = 0;
-  let reelDragStartOffset = 0;
-  let reelAnimFrame = null;
-  const ITEM_H = 38;
-  const CYLINDER_R = 90;
-  const MAX_VISIBLE = 5;
-
   let sales = loadData();
-  renderAll();
 
-  function addSale() {
-    const input = document.getElementById('sale-input');
-    const val = parseFloat(input.value);
-    if (!val || val <= 0) { input.focus(); return; }
-    sales.push({ amount: val, time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }), date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) });
-    saveData(sales);
-    spawnCoins(3);
-    input.value = '';
-    input.focus();
-    reelOffset = 0;
-    renderAll(true);
-  }
-
-  // Enter key
-  document.getElementById('sale-input').addEventListener('keydown', e => { if (e.key === 'Enter') addSale(); });
-
-  function deleteSale(idx) {
-    sales.splice(idx, 1);
-    saveData(sales);
-    renderAll();
-  }
-
+  // ───────────── RESET WITH DRAIN ANIMATION ─────────────
   function clearAll() {
     if (!confirm('Reset this month\'s sales? This cannot be undone.')) return;
-    sales = [];
-    saveData(sales);
-    coins = [];
-    reelOffset = 0;
-    fillTarget = 0;
-    fillCurrent = 0;
-    cancelAnimationFrame(reelAnimFrame);
-    renderAll();
-  }
 
-  function renderAll(isNewEntry = false) {
-    const total = sales.reduce((s, x) => s + x.amount, 0);
-    const pct = Math.min(total / GOAL, 1);
-    const remaining = Math.max(GOAL - total, 0);
-    const avg = sales.length ? total / sales.length : 0;
+    const startAmount = fillCurrent;
+    const duration = 700;
+    const startTime = performance.now();
 
-    // Update goal labels everywhere
-    const gf = formatGoal(GOAL);
-    document.getElementById('goal-label').textContent = gf;
-    document.getElementById('goal-edit-val').textContent = gf;
-    document.getElementById('goal-banner-amt').textContent = gf;
-    document.getElementById('stat-remaining').textContent = '$' + remaining.toLocaleString();
+    function drain(now) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      fillTarget = startAmount * (1 - eased);
 
-    // Update fill target
-    fillTarget = total;
-
-    // Text updates
-    document.getElementById('amount-current').textContent = '$' + total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    document.getElementById('pct-label').textContent = Math.round(pct * 100) + '%';
-    document.getElementById('progress-fill').style.width = (pct * 100) + '%';
-    document.getElementById('stat-sales').textContent = sales.length;
-    document.getElementById('stat-avg').textContent = '$' + avg.toFixed(0);
-
-    // Goal banner
-    const banner = document.getElementById('goal-banner');
-    if (total >= GOAL) { banner.classList.add('show'); }
-    else { banner.classList.remove('show'); }
-
-    // ── 3D CYLINDER REEL ──
-    buildReel();
-  }
-
-  function buildReel() {
-    const wrap = document.getElementById('reel-wrap');
-    const reel = document.getElementById('reel-3d');
-    if (!reel) return;
-    reel.innerHTML = '';
-
-    if (sales.length === 0) {
-      reel.innerHTML = '<div class="reel-empty">No sales yet — add your first one!</div>';
-      return;
+      if (progress < 1) {
+        requestAnimationFrame(drain);
+      } else {
+        sales = [];
+        saveData(sales);
+        coins = [];
+        reelOffset = 0;
+        fillTarget = 0;
+        fillCurrent = 0;
+        renderAll();
+      }
     }
 
-    // Render items newest first
-    const ordered = [...sales].reverse();
-    ordered.forEach((s, i) => {
-      const el = document.createElement('div');
-      el.className = 'reel-item';
-      el.dataset.idx = i;
-      el.innerHTML = `
-        <div class="reel-item-left">
-          <div class="reel-item-pip ${i === 0 ? '' : 'old'}"></div>
-          <div class="reel-item-text">
-            <div class="reel-item-amount">$${s.amount.toFixed(2)}</div>
-            <div class="reel-item-time">${s.date} · ${s.time}</div>
-          </div>
-        </div>
-        <button class="reel-item-del" onclick="deleteSale(${sales.length - 1 - i});event.stopPropagation()">×</button>
-      `;
-      reel.appendChild(el);
-    });
-
-    positionReel();
+    requestAnimationFrame(drain);
   }
 
-  function positionReel() {
-    const reel = document.getElementById('reel-3d');
-    if (!reel) return;
-    const items = reel.querySelectorAll('.reel-item');
-    const n = items.length;
-    if (!n) return;
+  // ───────────── MODIFY renderAll TO INCLUDE LAST MONTH DISPLAY ─────────────
+  const originalRenderAll = renderAll;
+  renderAll = function(isNewEntry = false) {
+    originalRenderAll(isNewEntry);
 
-    reelOffset = Math.max(0, Math.min(reelOffset, n - 1));
+    let lastMonthEl = document.getElementById('last-month-display');
+    if (!lastMonthEl) {
+      lastMonthEl = document.createElement('div');
+      lastMonthEl.id = 'last-month-display';
+      lastMonthEl.style.marginTop = '12px';
+      lastMonthEl.style.fontSize = '11px';
+      lastMonthEl.style.textAlign = 'center';
+      lastMonthEl.style.letterSpacing = '1px';
+      lastMonthEl.style.color = 'rgba(232,185,35,0.7)';
+      document.querySelector('.stats-row').after(lastMonthEl);
+    }
 
-    const wrapH = 130; // matches .reel-wrap height
-    const centerY = wrapH / 2; // vertical center of the wrap
-    const anglePerItem = 24; // degrees between each item on cylinder
+    const lastMonthTotal = getLastMonthTotal();
+    lastMonthEl.textContent = "Last Month: $" + lastMonthTotal.toLocaleString();
+  };
 
-    items.forEach((el, i) => {
-      const diff = i - reelOffset;
-      const angle = diff * anglePerItem;
-      const rad = angle * Math.PI / 180;
-
-      // Project cylinder position to screen Y, anchored to centerY
-      const yPos = centerY + Math.sin(rad) * CYLINDER_R - ITEM_H / 2;
-      const zPos = Math.cos(rad) * CYLINDER_R - CYLINDER_R;
-
-      const absDiff = Math.abs(diff);
-      const opacity = Math.max(0, 1 - absDiff * 0.38);
-      const scale = Math.max(0.65, 1 - absDiff * 0.1);
-
-      el.style.top = `${yPos}px`;
-      el.style.transform = `translateZ(${zPos}px) rotateX(${-angle}deg) scale(${scale})`;
-      el.style.opacity = opacity;
-      el.style.display = absDiff > MAX_VISIBLE ? 'none' : 'flex';
-    });
-  }
-
-  // ── REEL INTERACTION ──
-  function initReelInteraction() {
-    const wrap = document.getElementById('reel-wrap');
-    if (!wrap) return;
-
-    let lastY = 0;
-    let accDelta = 0; // accumulate drag distance before stepping
-
-    // Mouse wheel — one step per notch
-    wrap.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      accDelta += e.deltaY;
-      if (Math.abs(accDelta) >= 40) {
-        reelOffset += accDelta > 0 ? 1 : -1;
-        accDelta = 0;
-        snapReel();
-      }
-    }, { passive: false });
-
-    // Drag — accumulate pixels, step every ITEM_H px
-    let dragAccY = 0;
-
-    const onStart = (y) => {
-      reelDragging = true;
-      lastY = y;
-      dragAccY = 0;
-      cancelAnimationFrame(reelAnimFrame);
-    };
-
-    const onMove = (y) => {
-      if (!reelDragging) return;
-      dragAccY += lastY - y;
-      lastY = y;
-      // Step one position for every ITEM_H pixels dragged
-      while (dragAccY >= ITEM_H) {
-        reelOffset = Math.min(reelOffset + 1, (sales.length || 1) - 1);
-        dragAccY -= ITEM_H;
-        positionReel();
-      }
-      while (dragAccY <= -ITEM_H) {
-        reelOffset = Math.max(reelOffset - 1, 0);
-        dragAccY += ITEM_H;
-        positionReel();
-      }
-    };
-
-    const onEnd = () => {
-      if (!reelDragging) return;
-      reelDragging = false;
-      dragAccY = 0;
-      snapReel();
-    };
-
-    wrap.addEventListener('mousedown', e => { e.preventDefault(); onStart(e.clientY); });
-    window.addEventListener('mousemove', e => onMove(e.clientY));
-    window.addEventListener('mouseup', () => onEnd());
-    wrap.addEventListener('touchstart', e => onStart(e.touches[0].clientY), { passive: true });
-    wrap.addEventListener('touchmove', e => { e.preventDefault(); onMove(e.touches[0].clientY); }, { passive: false });
-    wrap.addEventListener('touchend', () => onEnd());
-  }
-
-  function snapReel() {
-    const target = Math.round(Math.max(0, Math.min(reelOffset, (sales.length || 1) - 1)));
-    cancelAnimationFrame(reelAnimFrame);
-    const animate = () => {
-      reelOffset += (target - reelOffset) * 0.2;
-      positionReel();
-      if (Math.abs(target - reelOffset) > 0.01) {
-        reelAnimFrame = requestAnimationFrame(animate);
-      } else {
-        reelOffset = target;
-        positionReel();
-      }
-    };
-    reelAnimFrame = requestAnimationFrame(animate);
-  }
-
-  initReelInteraction();
 </script>
 </body>
 </html>
